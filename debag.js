@@ -1,21 +1,35 @@
-import { Request, Response, NextFunction } from "express";
-import { RequestValidationError } from "../errors/request-validation-error";
-import { DatabaseConnectionError } from "../errors/database-connection-error";
+import { Request, Response, NextFunction } from 'express';
+import jwt from 'jsonwebtoken';
 
-export const errorHandler = (
-  err: Error,
+interface UserPayload {
+  id: string;
+  email: string;
+}
+
+declare global {
+  namespace Express {
+    interface Request {
+      currentUser?: UserPayload;
+    }
+  }
+}
+
+export const currentUser = (
   req: Request,
   res: Response,
   next: NextFunction
 ) => {
-  if (err instanceof RequestValidationError) {
-    return res.status(err.statusCode).send({ errors: err.serializeErrors() });
-  }
-  if (err instanceof DatabaseConnectionError) {
-    return res.status(err.statusCode).send({ errors: err.serializeErrors() });
+  if (!req.session?.jwt) {
+    return next();
   }
 
-  res.status(400).send({
-    errors: [{ message: "Something went wrong" }],
-  });
+  try {
+    const payload = jwt.verify(
+      req.session.jwt,
+      process.env.JWT_KEY!
+    ) as UserPayload;
+    req.currentUser = payload;
+  } catch (err) {}
+
+  next();
 };
